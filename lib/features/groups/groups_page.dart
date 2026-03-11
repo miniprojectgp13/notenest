@@ -205,7 +205,7 @@ class _GroupsPageState extends State<GroupsPage> {
                         child: _leftItem(
                           isSelected: isSelected,
                           title: _nameWithoutEmoji(group.name),
-                          leadingEmoji: _emojiFromText(group.name),
+                          leading: _groupSidebarAvatar(group),
                           subtitle:
                               '${group.members.length} members • ${group.id}',
                           onTap: () {
@@ -234,7 +234,7 @@ class _GroupsPageState extends State<GroupsPage> {
                         child: _leftItem(
                           isSelected: isSelected,
                           title: appState.directChatDisplayName(id),
-                          leadingEmoji: '💬',
+                          leading: _sidebarLeadingBox('💬'),
                           subtitle: '$id\n$preview',
                           onTap: () {
                             setState(() {
@@ -257,7 +257,7 @@ class _GroupsPageState extends State<GroupsPage> {
     required bool isSelected,
     required String title,
     required String subtitle,
-    required String leadingEmoji,
+    required Widget leading,
     required VoidCallback onTap,
   }) {
     return Material(
@@ -282,16 +282,7 @@ class _GroupsPageState extends State<GroupsPage> {
             children: [
               Row(
                 children: [
-                  Container(
-                    height: 26,
-                    width: 26,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.72),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(leadingEmoji, style: const TextStyle(fontSize: 15)),
-                  ),
+                  leading,
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -319,6 +310,46 @@ class _GroupsPageState extends State<GroupsPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _sidebarLeadingBox(String emoji) {
+    return Container(
+      height: 26,
+      width: 26,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(emoji, style: const TextStyle(fontSize: 15)),
+    );
+  }
+
+  Widget _groupSidebarAvatar(GroupItem group) {
+    final path = (group.photoPath ?? '').trim();
+    if (path.isEmpty) {
+      return _sidebarLeadingBox(_emojiFromText(group.name));
+    }
+
+    return FutureBuilder<String?>(
+      future: _groupPhotoFuture(path),
+      builder: (context, snapshot) {
+        final url = snapshot.data;
+        if (url == null || url.isEmpty) {
+          return _sidebarLeadingBox(_emojiFromText(group.name));
+        }
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.network(
+            url,
+            width: 26,
+            height: 26,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _sidebarLeadingBox(_emojiFromText(group.name)),
+          ),
+        );
+      },
     );
   }
 
