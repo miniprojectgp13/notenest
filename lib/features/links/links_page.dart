@@ -1,5 +1,8 @@
+﻿import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -13,15 +16,36 @@ class LinksPage extends StatefulWidget {
   State<LinksPage> createState() => _LinksPageState();
 }
 
-class _LinksPageState extends State<LinksPage> {
+class _LinksPageState extends State<LinksPage>
+  with SingleTickerProviderStateMixin {
   final TextEditingController _urlController = TextEditingController();
   final TextEditingController _contentController = TextEditingController();
 
   String? _selectedFolderId;
   String? _selectedSubFolderId;
+  late final AnimationController _bgController;
+  bool _showContent = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _bgController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..repeat();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _showContent = true;
+      });
+    });
+  }
 
   @override
   void dispose() {
+    _bgController.dispose();
     _urlController.dispose();
     _contentController.dispose();
     super.dispose();
@@ -52,7 +76,12 @@ class _LinksPageState extends State<LinksPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Links Manager'),
+        title: Text(
+          'Links Manager',
+          style: GoogleFonts.fredoka(fontWeight: FontWeight.w600),
+        ),
+        foregroundColor: const Color(0xFF2E3C54),
+        backgroundColor: const Color(0xFFEAF0F6),
         actions: [
           IconButton(
             onPressed:
@@ -68,27 +97,81 @@ class _LinksPageState extends State<LinksPage> {
           ),
         ],
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth > 900;
-          if (isWide) {
-            return Row(
+      body: AnimatedBuilder(
+        animation: _bgController,
+        builder: (context, _) {
+          final t = _bgController.value;
+          final dy = math.sin(t * math.pi * 2) * 10;
+          return Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFF7F2EA), Color(0xFFE8F1F8), Color(0xFFF6ECE4)],
+              ),
+            ),
+            child: Stack(
               children: [
-                SizedBox(
-                    width: 360, child: _folderPanel(context, selectedFolder)),
-                const VerticalDivider(width: 1),
-                Expanded(child: _urlPanel(context, selectedFolder, links)),
+                Positioned(
+                  right: -70,
+                  top: -60 + dy,
+                  child: _bgGlow(240, const Color(0xFFB7DDED)),
+                ),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWide = constraints.maxWidth > 900;
+                    final body = isWide
+                        ? Row(
+                            children: [
+                              SizedBox(
+                                  width: 360,
+                                  child: _folderPanel(context, selectedFolder)),
+                              const VerticalDivider(width: 1),
+                              Expanded(child: _urlPanel(context, selectedFolder, links)),
+                            ],
+                          )
+                        : SingleChildScrollView(
+                            child: Column(
+                              children: [
+                                _folderPanel(context, selectedFolder),
+                                const Divider(height: 1),
+                                SizedBox(
+                                  height: 520,
+                                  child: _urlPanel(context, selectedFolder, links),
+                                ),
+                              ],
+                            ),
+                          );
+                    return Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1220),
+                        child: body,
+                      ),
+                    );
+                  },
+                ),
               ],
-            );
-          }
-          return Column(
-            children: [
-              _folderPanel(context, selectedFolder),
-              const Divider(height: 1),
-              Expanded(child: _urlPanel(context, selectedFolder, links)),
-            ],
+            ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _bgGlow(double size, Color color) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              color.withValues(alpha: 0.32),
+              color.withValues(alpha: 0),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -100,46 +183,77 @@ class _LinksPageState extends State<LinksPage> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 350),
       padding: const EdgeInsets.all(14),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFFF7F3FF), Color(0xFFF0F7FF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.62),
+        border: Border.all(color: const Color(0xFFD4DEEA)),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A2E4A62),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Create Folder',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+          Text(
+            'Create Folder',
+            style: GoogleFonts.nunito(
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+              color: const Color(0xFF2B3D58),
+            ),
+          ),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _showCreateFolderDialog(context),
-                  icon: const Icon(Icons.create_new_folder_outlined),
-                  label: const Text('New Folder'),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 340;
+              final newFolderButton = OutlinedButton.icon(
+                onPressed: () => _showCreateFolderDialog(context),
+                icon: const Icon(Icons.create_new_folder_outlined),
+                label: const Text('New Folder'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF2F5879),
+                  side: const BorderSide(color: Color(0xFFC9D7E7)),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: selectedFolder == null
-                      ? null
-                      : () => _showCreateSubFolderDialog(
-                          context, selectedFolder.id),
-                  icon: const Icon(Icons.folder_open_outlined),
-                  label: const Text('New Subfolder'),
+              );
+              final newSubFolderButton = OutlinedButton.icon(
+                onPressed: selectedFolder == null
+                    ? null
+                    : () => _showCreateSubFolderDialog(context, selectedFolder.id),
+                icon: const Icon(Icons.folder_open_outlined),
+                label: const Text('New Subfolder'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF2F5879),
+                  side: const BorderSide(color: Color(0xFFC9D7E7)),
                 ),
-              ),
-            ],
+              );
+
+              if (isNarrow) {
+                return Column(
+                  children: [
+                    SizedBox(width: double.infinity, child: newFolderButton),
+                    const SizedBox(height: 8),
+                    SizedBox(width: double.infinity, child: newSubFolderButton),
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: newFolderButton),
+                  const SizedBox(width: 8),
+                  Expanded(child: newSubFolderButton),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
             value: _selectedFolderId,
-            decoration:
-                const InputDecoration(labelText: 'Select existing folder'),
+            decoration: _inputDecoration('Select existing folder'),
             items: folders
                 .map((folder) => DropdownMenuItem(
                     value: folder.id, child: Text(folder.name)))
@@ -158,8 +272,7 @@ class _LinksPageState extends State<LinksPage> {
           if (selectedFolder != null)
             DropdownButtonFormField<String?>(
               value: _selectedSubFolderId,
-              decoration: const InputDecoration(
-                  labelText: 'Select subfolder (optional)'),
+              decoration: _inputDecoration('Select subfolder (optional)'),
               items: [
                 const DropdownMenuItem<String?>(
                     value: null, child: Text('No subfolder')),
@@ -175,9 +288,16 @@ class _LinksPageState extends State<LinksPage> {
               },
             ),
           const SizedBox(height: 12),
-          const Text('Folders', style: TextStyle(fontWeight: FontWeight.w700)),
+          Text(
+            'Folders',
+            style: GoogleFonts.nunito(
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF2F405B),
+            ),
+          ),
           const SizedBox(height: 6),
-          Expanded(
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 200),
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 280),
               child: folders.isEmpty
@@ -193,20 +313,26 @@ class _LinksPageState extends State<LinksPage> {
                           margin: const EdgeInsets.only(bottom: 8),
                           decoration: BoxDecoration(
                             color: selected
-                                ? const Color(0xFFE8DEFF)
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(12),
+                                ? const Color(0xFFDDEBFA)
+                                : Colors.white.withValues(alpha: 0.78),
+                            borderRadius: BorderRadius.circular(14),
                             border: Border.all(
                               color: selected
-                                  ? const Color(0xFF8D70F8)
-                                  : const Color(0xFFD9D3EA),
+                                  ? const Color(0xFF77A6CC)
+                                  : const Color(0xFFD4DEEA),
                             ),
                           ),
                           child: ListTile(
-                            title: Text(folder.name,
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle:
-                                Text('${folder.subFolders.length} subfolders'),
+                            title: Text(
+                              folder.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+                            ),
+                            subtitle: Text(
+                              '${folder.subFolders.length} subfolders',
+                              style: GoogleFonts.nunito(fontWeight: FontWeight.w700),
+                            ),
                             onTap: () {
                               setState(() {
                                 _selectedFolderId = folder.id;
@@ -233,60 +359,64 @@ class _LinksPageState extends State<LinksPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 320),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              gradient: const LinearGradient(
-                colors: [Color(0xFF9A86FF), Color(0xFF6CC9D8)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x304A43A1),
-                  blurRadius: 16,
-                  offset: Offset(0, 7),
+          _entryAnim(
+            delay: 0,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 320),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF2D6787), Color(0xFF5EA7B7)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-              ],
-            ),
-            child: Column(
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x304A43A1),
+                    blurRadius: 16,
+                    offset: Offset(0, 7),
+                  ),
+                ],
+              ),
+              child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'URL Upload Section',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18),
+                  style: GoogleFonts.nunito(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 20,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   selectedFolder == null
                       ? 'No folder selected'
                       : 'Selected folder: ${selectedFolder.name}',
-                  style: const TextStyle(color: Colors.white),
+                  style: GoogleFonts.nunito(
+                    color: const Color(0xFFE8F7FF),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: _urlController,
-                  decoration: const InputDecoration(
+                  decoration: _inputDecoration(
+                    'Paste URL',
                     filled: true,
-                    fillColor: Colors.white,
-                    labelText: 'Paste URL',
-                    border: OutlineInputBorder(),
+                    fillColor: Colors.white.withValues(alpha: 0.92),
                   ),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _contentController,
                   maxLines: 2,
-                  decoration: const InputDecoration(
+                  decoration: _inputDecoration(
+                    'Content / notes for URL',
                     filled: true,
-                    fillColor: Colors.white,
-                    labelText: 'Content / notes for URL',
-                    border: OutlineInputBorder(),
+                    fillColor: Colors.white.withValues(alpha: 0.92),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -295,12 +425,12 @@ class _LinksPageState extends State<LinksPage> {
                   child: FilledButton.icon(
                     onPressed: selectedFolder == null
                         ? null
-                        : () {
+                        : () async {
                             final url = _urlController.text.trim();
                             if (url.isEmpty) {
                               return;
                             }
-                            appState.saveUrl(
+                            await appState.saveUrl(
                               url: url,
                               folderId: selectedFolder.id,
                               subFolderId: _selectedSubFolderId,
@@ -316,14 +446,24 @@ class _LinksPageState extends State<LinksPage> {
                           },
                     icon: const Icon(Icons.save_outlined),
                     label: const Text('Save URL'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF174A67),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
+          ),
           const SizedBox(height: 12),
-          const Text('Saved URLs',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+          Text(
+            'Saved URLs',
+            style: GoogleFonts.nunito(
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+              color: const Color(0xFF2B3D58),
+            ),
+          ),
           const SizedBox(height: 8),
           Expanded(
             child: AnimatedSwitcher(
@@ -348,6 +488,11 @@ class _LinksPageState extends State<LinksPage> {
                         }
                         return Card(
                           margin: const EdgeInsets.only(bottom: 10),
+                          color: Colors.white.withValues(alpha: 0.8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            side: const BorderSide(color: Color(0xFFD4DEEA)),
+                          ),
                           child: ListTile(
                             title: Text(item.url,
                                 maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -412,13 +557,51 @@ class _LinksPageState extends State<LinksPage> {
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel')),
           FilledButton(
-            onPressed: () {
-              context.read<AppState>().addUrlFolder(controller.text);
+            onPressed: () async {
+              await context.read<AppState>().addUrlFolder(controller.text);
               Navigator.pop(dialogContext);
             },
             child: const Text('Create'),
           ),
         ],
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(
+    String label, {
+    bool filled = true,
+    Color? fillColor,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      filled: filled,
+      fillColor: fillColor ?? Colors.white.withValues(alpha: 0.8),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFD2DDEA)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFD2DDEA)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF5E91B5), width: 1.4),
+      ),
+    );
+  }
+
+  Widget _entryAnim({required Widget child, required int delay}) {
+    return AnimatedSlide(
+      duration: Duration(milliseconds: 420 + delay),
+      curve: Curves.easeOutCubic,
+      offset: _showContent ? Offset.zero : const Offset(0, 0.06),
+      child: AnimatedOpacity(
+        duration: Duration(milliseconds: 360 + delay),
+        curve: Curves.easeOut,
+        opacity: _showContent ? 1 : 0,
+        child: child,
       ),
     );
   }
@@ -439,8 +622,8 @@ class _LinksPageState extends State<LinksPage> {
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel')),
           FilledButton(
-            onPressed: () {
-              context
+            onPressed: () async {
+              await context
                   .read<AppState>()
                   .addUrlSubFolder(folderId: folderId, name: controller.text);
               Navigator.pop(dialogContext);
@@ -473,8 +656,8 @@ class _LinksPageState extends State<LinksPage> {
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel')),
           FilledButton(
-            onPressed: () {
-              appState.renameUrlFolder(
+            onPressed: () async {
+              await appState.renameUrlFolder(
                   folderId: folder.id, newName: controller.text);
               Navigator.pop(dialogContext);
             },
@@ -511,7 +694,7 @@ class _LinksPageState extends State<LinksPage> {
     if (ok != true || !context.mounted) {
       return;
     }
-    appState.deleteUrlFolder(folder.id);
+    await appState.deleteUrlFolder(folder.id);
     setState(() {
       _selectedFolderId =
           appState.urlFolders.isEmpty ? null : appState.urlFolders.first.id;
@@ -592,8 +775,8 @@ class _LinksPageState extends State<LinksPage> {
                   onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('Cancel')),
               FilledButton(
-                onPressed: () {
-                  appState.updateSavedUrl(
+                onPressed: () async {
+                  await appState.updateSavedUrl(
                     id: item.id,
                     url: urlController.text,
                     content: contentController.text,

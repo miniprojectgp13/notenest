@@ -12,13 +12,18 @@ class NoteNestApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => AppState(),
+      create: (_) => AppState()..initAuth(),
       child: MaterialApp(
         title: 'NoteNest',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         home: Consumer<AppState>(
           builder: (context, appState, _) {
+            if (!appState.authReady) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
             if (appState.isLoggedIn) {
               return const HomePage();
             }

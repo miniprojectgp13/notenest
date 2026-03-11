@@ -50,10 +50,12 @@ class GroupItem {
     required this.members,
     required this.messages,
     required this.attachments,
+    this.photoPath,
   });
 
   final String id;
   String name;
+  String? photoPath;
   List<GroupMember> members;
   List<ChatMessage> messages;
   List<GroupAttachment> attachments;

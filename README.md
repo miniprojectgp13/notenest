@@ -1,16 +1,53 @@
-# notenest
+# NoteNest
 
-A new Flutter project.
+Flutter student productivity app with Supabase-backed authentication.
 
-## Getting Started
+## Supabase Setup
 
-This project is a starting point for a Flutter application.
+1. Open your project dashboard:
+`https://supabase.com/dashboard/project/zmtytwilsdpcpzbhjeac`
+2. Go to `SQL Editor` and run `supabase/schema.sql` from this repository.
+3. Go to `Project Settings > API` and copy:
+- `Project URL` (already configured by default in `lib/main.dart`)
+- `anon public` key (required at runtime)
+4. In `SQL Editor`, run the full `supabase/schema.sql` script after every schema change.
 
-A few resources to get you started if this is your first Flutter project:
+## Run Locally (Chrome)
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Use this command from project root:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter run -d chrome --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY
+```
+
+Or use file-based defines (recommended):
+
+1. Copy `env.example.json` to `env.json`
+2. Put your real Supabase anon key in `env.json`
+3. Run:
+
+```bash
+flutter run -d chrome --dart-define-from-file=env.json
+```
+
+VS Code launch profile is already added:
+`NoteNest (Chrome + Supabase)`
+
+Optional (if you want custom URL):
+
+```bash
+flutter run -d chrome \
+	--dart-define=SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co \
+	--dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY
+```
+
+## Auth Flow Implemented
+
+- Signup: `name + phone + college + password`
+- Login: `username OR phone + password`
+- Session persistence: user stays logged in after app close/reopen (stored locally in app state)
+
+Notes:
+- Phone is validated as 10 digits in app.
+- No email-based auth is used in this flow.
+- User data is stored in `public.student_users` via secure RPC functions.

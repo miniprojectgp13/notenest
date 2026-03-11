@@ -1,12 +1,15 @@
-import 'package:file_picker/file_picker.dart';
+﻿import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models/group_item.dart';
 import '../../core/state/app_state.dart';
+import '../../core/utils/web_file_utils_stub.dart'
+  if (dart.library.html) '../../core/utils/web_file_utils_web.dart';
 
 enum ChatPanelMode { groups, personal }
 
@@ -18,6 +21,21 @@ class GroupsPage extends StatefulWidget {
 }
 
 class _GroupsPageState extends State<GroupsPage> {
+  static const List<String> _iconEmojis = [
+    '📚',
+    '🧠',
+    '🚀',
+    '🔥',
+    '🎯',
+    '💡',
+    '📝',
+    '🤝',
+    '😎',
+    '🎓',
+    '✅',
+    '🌟',
+  ];
+
   ChatPanelMode mode = ChatPanelMode.groups;
   String? selectedGroupId;
   String? selectedDirectId;
@@ -25,6 +43,9 @@ class _GroupsPageState extends State<GroupsPage> {
   final TextEditingController _groupMessageController = TextEditingController();
   final TextEditingController _directMessageController =
       TextEditingController();
+
+  bool _showChatMobile = false;
+  final Map<String, Future<String?>> _groupPhotoFutures = {};
 
   @override
   void dispose() {
@@ -81,22 +102,47 @@ class _GroupsPageState extends State<GroupsPage> {
             colors: [Color(0xFFF7F4FF), Color(0xFFF0EEF8)],
           ),
         ),
-        child: Row(
-          children: [
-            _leftPanel(context),
-            const VerticalDivider(width: 1),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 280),
-                switchInCurve: Curves.easeOutCubic,
-                child: mode == ChatPanelMode.groups
-                    ? (selectedGroup == null
-                        ? const Center(child: Text('Create your first group'))
-                        : _groupChatArea(context, selectedGroup))
-                    : _personalChatArea(context),
-              ),
-            ),
-          ],
+        child: LayoutBuilder(
+          builder: (ctx, cs) {
+            final isWide = cs.maxWidth > 620;
+            final chatWidget = AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              switchInCurve: Curves.easeOutCubic,
+              child: mode == ChatPanelMode.groups
+                  ? (selectedGroup == null
+                      ? const Center(child: Text('Create your first group'))
+                      : _groupChatArea(context, selectedGroup))
+                  : _personalChatArea(context),
+            );
+            if (isWide) {
+              return Row(
+                children: [
+                  SizedBox(width: 260, child: _leftPanel(context)),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: chatWidget),
+                ],
+              );
+            }
+            if (_showChatMobile) {
+              return Column(
+                children: [
+                  Container(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => setState(() => _showChatMobile = false),
+                        icon: const Icon(Icons.arrow_back),
+                        label: const Text('Back'),
+                      ),
+                    ),
+                  ),
+                  Expanded(child: chatWidget),
+                ],
+              );
+            }
+            return _leftPanel(context);
+          },
         ),
       ),
     );
@@ -108,7 +154,6 @@ class _GroupsPageState extends State<GroupsPage> {
     final directIds = appState.directChatIds;
 
     return Container(
-      width: 260,
       margin: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.75),
@@ -159,13 +204,15 @@ class _GroupsPageState extends State<GroupsPage> {
                             horizontal: 8, vertical: 5),
                         child: _leftItem(
                           isSelected: isSelected,
-                          title: group.name,
+                          title: _nameWithoutEmoji(group.name),
+                          leadingEmoji: _emojiFromText(group.name),
                           subtitle:
                               '${group.members.length} members • ${group.id}',
                           onTap: () {
                             setState(() {
                               selectedGroupId = group.id;
                               mode = ChatPanelMode.groups;
+                              _showChatMobile = true;
                             });
                           },
                         ),
@@ -187,11 +234,13 @@ class _GroupsPageState extends State<GroupsPage> {
                         child: _leftItem(
                           isSelected: isSelected,
                           title: appState.directChatDisplayName(id),
+                          leadingEmoji: '💬',
                           subtitle: '$id\n$preview',
                           onTap: () {
                             setState(() {
                               selectedDirectId = id;
                               mode = ChatPanelMode.personal;
+                              _showChatMobile = true;
                             });
                           },
                         ),
@@ -208,6 +257,7 @@ class _GroupsPageState extends State<GroupsPage> {
     required bool isSelected,
     required String title,
     required String subtitle,
+    required String leadingEmoji,
     required VoidCallback onTap,
   }) {
     return Material(
@@ -230,11 +280,30 @@ class _GroupsPageState extends State<GroupsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: GoogleFonts.nunito(
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF4B4474)),
+              Row(
+                children: [
+                  Container(
+                    height: 26,
+                    width: 26,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.72),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(leadingEmoji, style: const TextStyle(fontSize: 15)),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.nunito(
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF4B4474)),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 2),
               Text(
@@ -269,11 +338,46 @@ class _GroupsPageState extends State<GroupsPage> {
           ),
           child: Row(
             children: [
+              GestureDetector(
+                onTap: () => _pickGroupPhoto(context, group.id),
+                child: Stack(
+                  children: [
+                    FutureBuilder<String?>(
+                      future: _groupPhotoFuture(group.photoPath),
+                      builder: (_, snap) {
+                        final url = snap.data;
+                        if (url != null && url.isNotEmpty) {
+                          return ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              url, width: 42, height: 42, fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _groupEmojiBox(group),
+                            ),
+                          );
+                        }
+                        return _groupEmojiBox(group);
+                      },
+                    ),
+                    Positioned(
+                      right: 0, bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6D60D8),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: const Icon(Icons.camera_alt, size: 10, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(group.name,
+                    Text(_nameWithoutEmoji(group.name),
                         style: GoogleFonts.nunito(
                             fontWeight: FontWeight.w900, fontSize: 18)),
                     const SizedBox(height: 3),
@@ -300,9 +404,48 @@ class _GroupsPageState extends State<GroupsPage> {
                 onPressed: () => _showAddMemberDialog(context, group.id),
                 icon: const Icon(Icons.person_add_alt_1_rounded),
               ),
+              IconButton(
+                tooltip: 'Delete Group',
+                onPressed: () => _confirmDeleteGroup(context, group),
+                icon: const Icon(Icons.delete_outline_rounded),
+              ),
             ],
           ),
         ),
+        if (group.members.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: group.members
+                    .map(
+                      (member) => Chip(
+                        avatar: CircleAvatar(
+                          backgroundColor: Colors.white,
+                          child: Text(
+                            _emojiFromText(member.name),
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                        label: Text(
+                          '${_nameWithoutEmoji(member.name)} (${member.uniqueId})',
+                          style: GoogleFonts.nunito(fontWeight: FontWeight.w700),
+                        ),
+                        deleteIcon: const Icon(Icons.close, size: 18),
+                        onDeleted: () => _confirmRemoveMember(
+                          context: context,
+                          groupId: group.id,
+                          member: member,
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ),
         if (group.attachments.isNotEmpty)
           SizedBox(
             height: 100,
@@ -331,6 +474,28 @@ class _GroupsPageState extends State<GroupsPage> {
                           Expanded(
                             child: Text(a.fileName,
                                 overflow: TextOverflow.ellipsis),
+                          ),
+                          IconButton(
+                            tooltip: 'Open file',
+                            onPressed: () async {
+                              await _openSharedAttachment(
+                                storageRef: a.fileRef,
+                                fileName: a.fileName,
+                                download: false,
+                              );
+                            },
+                            icon: const Icon(Icons.open_in_new_rounded, size: 17),
+                          ),
+                          IconButton(
+                            tooltip: 'Download to device',
+                            onPressed: () async {
+                              await _openSharedAttachment(
+                                storageRef: a.fileRef,
+                                fileName: a.fileName,
+                                download: true,
+                              );
+                            },
+                            icon: const Icon(Icons.download_rounded, size: 18),
                           ),
                         ],
                       ),
@@ -382,6 +547,7 @@ class _GroupsPageState extends State<GroupsPage> {
                             child: _attachmentChip(
                               message.attachmentName!,
                               message.attachmentType ?? 'File',
+                                storageRef: message.attachmentRef,
                             ),
                           ),
                         Text(
@@ -426,12 +592,12 @@ class _GroupsPageState extends State<GroupsPage> {
                 style: FilledButton.styleFrom(
                     shape: const CircleBorder(),
                     padding: const EdgeInsets.all(12)),
-                onPressed: () {
+                onPressed: () async {
                   final content = _groupMessageController.text.trim();
                   if (content.isEmpty) {
                     return;
                   }
-                  appState.sendGroupMessage(
+                  await appState.sendGroupMessage(
                     groupId: group.id,
                     sender: appState.profile.uniqueId,
                     content: content,
@@ -517,6 +683,7 @@ class _GroupsPageState extends State<GroupsPage> {
                           child: _attachmentChip(
                             m.attachmentName!,
                             m.attachmentType ?? 'File',
+                            storageRef: m.attachmentRef,
                           ),
                         ),
                       Text(DateFormat('h:mm a').format(m.sentAt),
@@ -558,12 +725,12 @@ class _GroupsPageState extends State<GroupsPage> {
                 style: FilledButton.styleFrom(
                     shape: const CircleBorder(),
                     padding: const EdgeInsets.all(12)),
-                onPressed: () {
+                onPressed: () async {
                   final content = _directMessageController.text.trim();
                   if (content.isEmpty) {
                     return;
                   }
-                  appState.sendDirectMessage(
+                  await appState.sendDirectMessage(
                     targetUniqueId: id,
                     sender: appState.profile.uniqueId,
                     content: content,
@@ -582,12 +749,16 @@ class _GroupsPageState extends State<GroupsPage> {
 
   Future<void> _showCreateGroupDialog(BuildContext context) async {
     final nameController = TextEditingController();
+    String selectedGroupEmoji = _iconEmojis.first;
+    Uint8List? groupPhotoBytes;
+    String? groupPhotoName;
     final List<TextEditingController> memberNameControllers = [
       TextEditingController()
     ];
     final List<TextEditingController> memberIdControllers = [
       TextEditingController()
     ];
+    final List<String> memberEmojis = [_iconEmojis.first];
 
     await showDialog<void>(
       context: context,
@@ -608,6 +779,92 @@ class _GroupsPageState extends State<GroupsPage> {
                             const InputDecoration(labelText: 'Group Name'),
                       ),
                       const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Group Icon',
+                          style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: _iconEmojis
+                            .map(
+                              (emoji) => ChoiceChip(
+                                label: Text(emoji),
+                                selected: selectedGroupEmoji == emoji,
+                                onSelected: (_) {
+                                  setState(() {
+                                    selectedGroupEmoji = emoji;
+                                  });
+                                },
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 22,
+                              backgroundColor: const Color(0xFFE8E2FF),
+                              backgroundImage: groupPhotoBytes == null
+                                  ? null
+                                  : MemoryImage(groupPhotoBytes!),
+                              child: groupPhotoBytes == null
+                                  ? Text(
+                                      selectedGroupEmoji,
+                                      style: const TextStyle(fontSize: 20),
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(width: 10),
+                            OutlinedButton.icon(
+                              onPressed: () async {
+                                final result = await FilePicker.platform.pickFiles(
+                                  type: FileType.image,
+                                  withData: true,
+                                );
+                                if (result == null || result.files.isEmpty) {
+                                  return;
+                                }
+                                final file = result.files.single;
+                                if (file.bytes == null || file.bytes!.isEmpty) {
+                                  return;
+                                }
+                                setState(() {
+                                  groupPhotoBytes = file.bytes;
+                                  groupPhotoName = file.name;
+                                });
+                              },
+                              icon: const Icon(Icons.add_a_photo_outlined),
+                              label: Text(
+                                groupPhotoBytes == null
+                                    ? 'Upload Group Photo'
+                                    : 'Change Group Photo',
+                              ),
+                            ),
+                            if (groupPhotoBytes != null) ...[
+                              const SizedBox(width: 8),
+                              IconButton(
+                                tooltip: 'Remove photo',
+                                onPressed: () {
+                                  setState(() {
+                                    groupPhotoBytes = null;
+                                    groupPhotoName = null;
+                                  });
+                                },
+                                icon: const Icon(Icons.delete_outline),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       Row(
                         children: [
                           const Text('Members (Name + Unique ID)'),
@@ -619,6 +876,7 @@ class _GroupsPageState extends State<GroupsPage> {
                                     .add(TextEditingController());
                                 memberIdControllers
                                     .add(TextEditingController());
+                                memberEmojis.add(_iconEmojis.first);
                               });
                             },
                             icon: const Icon(Icons.add_circle_outline),
@@ -630,6 +888,29 @@ class _GroupsPageState extends State<GroupsPage> {
                           padding: const EdgeInsets.only(bottom: 8),
                           child: Row(
                             children: [
+                              SizedBox(
+                                width: 70,
+                                child: DropdownButtonFormField<String>(
+                                  value: memberEmojis[i],
+                                  items: _iconEmojis
+                                      .map(
+                                        (emoji) => DropdownMenuItem(
+                                          value: emoji,
+                                          child: Text(emoji),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (value) {
+                                    if (value == null) {
+                                      return;
+                                    }
+                                    setState(() {
+                                      memberEmojis[i] = value;
+                                    });
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 8),
                               Expanded(
                                 child: TextField(
                                   controller: memberNameControllers[i],
@@ -647,6 +928,24 @@ class _GroupsPageState extends State<GroupsPage> {
                                       labelText: 'Unique ID'),
                                 ),
                               ),
+                              const SizedBox(width: 4),
+                              IconButton(
+                                tooltip: 'Remove member row',
+                                onPressed: memberNameControllers.length == 1
+                                    ? null
+                                    : () {
+                                        setState(() {
+                                          final nameController =
+                                              memberNameControllers.removeAt(i);
+                                          final idController =
+                                              memberIdControllers.removeAt(i);
+                                          memberEmojis.removeAt(i);
+                                          nameController.dispose();
+                                          idController.dispose();
+                                        });
+                                      },
+                                icon: const Icon(Icons.remove_circle_outline),
+                              ),
                             ],
                           ),
                         ),
@@ -660,24 +959,85 @@ class _GroupsPageState extends State<GroupsPage> {
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
-                  onPressed: () {
+                  onPressed: () async {
                     final groupName = nameController.text.trim();
                     if (groupName.isEmpty) {
+                      if (!mounted) {
+                        return;
+                      }
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        const SnackBar(content: Text('Enter group name.')),
+                      );
                       return;
                     }
                     final members = <GroupMember>[];
+                    final usedIds = <String>{};
                     for (int i = 0; i < memberNameControllers.length; i++) {
                       final name = memberNameControllers[i].text.trim();
                       final id =
                           memberIdControllers[i].text.trim().toUpperCase();
                       if (name.isNotEmpty && id.isNotEmpty) {
-                        members.add(GroupMember(name: name, uniqueId: id));
+                        if (usedIds.contains(id)) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              SnackBar(content: Text('Duplicate Unique ID: $id')),
+                            );
+                          }
+                          return;
+                        }
+                        usedIds.add(id);
+                        members.add(
+                          GroupMember(
+                            name: '${memberEmojis[i]} $name',
+                            uniqueId: id,
+                          ),
+                        );
                       }
                     }
-                    context
-                        .read<AppState>()
-                        .addGroup(name: groupName, members: members);
+                    final appState = context.read<AppState>();
+                    final created = await appState.addGroup(
+                      name: '$selectedGroupEmoji $groupName',
+                      members: members,
+                    );
+                    if (created == null) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          const SnackBar(content: Text('Unable to create group.')),
+                        );
+                      }
+                      return;
+                    }
+
+                    String? photoError;
+                    if (groupPhotoBytes != null && groupPhotoName != null) {
+                      photoError = await appState.uploadGroupPhoto(
+                        groupId: created.id,
+                        fileBytes: groupPhotoBytes!,
+                        originalFileName: groupPhotoName!,
+                      );
+                    }
+
+                    if (!dialogContext.mounted) {
+                      return;
+                    }
                     Navigator.pop(dialogContext);
+                    if (!mounted) {
+                      return;
+                    }
+                    setState(() {
+                      selectedGroupId = created.id;
+                      mode = ChatPanelMode.groups;
+                      _showChatMobile = true;
+                    });
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          photoError ?? 'Group created successfully.',
+                        ),
+                        backgroundColor:
+                            photoError == null ? null : Colors.redAccent,
+                      ),
+                    );
                   },
                   child: const Text('Create'),
                 ),
@@ -699,34 +1059,65 @@ class _GroupsPageState extends State<GroupsPage> {
 
   Future<void> _showRenameGroupDialog(
       BuildContext context, GroupItem group) async {
-    final controller = TextEditingController(text: group.name);
+    final parsedGroup = _splitEmojiPrefix(group.name, fallback: _iconEmojis.first);
+    final controller = TextEditingController(text: parsedGroup.$2);
+    String selectedEmoji = parsedGroup.$1;
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Edit Group Name'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(labelText: 'Group name'),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Edit Group Name'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                decoration: const InputDecoration(labelText: 'Group name'),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: _iconEmojis
+                    .map(
+                      (emoji) => ChoiceChip(
+                        label: Text(emoji),
+                        selected: selectedEmoji == emoji,
+                        onSelected: (_) {
+                          setState(() {
+                            selectedEmoji = emoji;
+                          });
+                        },
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final newName = controller.text.trim();
+                if (newName.isEmpty) {
+                  return;
+                }
+                await context.read<AppState>().renameGroup(
+                  groupId: group.id,
+                  newName: '$selectedEmoji $newName',
+                );
+                if (!dialogContext.mounted) {
+                  return;
+                }
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Save'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final newName = controller.text.trim();
-              if (newName.isEmpty) {
-                return;
-              }
-              context
-                  .read<AppState>()
-                  .renameGroup(groupId: group.id, newName: newName);
-              Navigator.pop(dialogContext);
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
     controller.dispose();
@@ -736,44 +1127,85 @@ class _GroupsPageState extends State<GroupsPage> {
       BuildContext context, String groupId) async {
     final nameController = TextEditingController();
     final idController = TextEditingController();
+    String selectedEmoji = _iconEmojis.first;
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Add Member'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Member name'),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Add Member'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Member name'),
+              ),
+              TextField(
+                controller: idController,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(labelText: 'Unique ID'),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: _iconEmojis
+                    .map(
+                      (emoji) => ChoiceChip(
+                        label: Text(emoji),
+                        selected: selectedEmoji == emoji,
+                        onSelected: (_) {
+                          setState(() {
+                            selectedEmoji = emoji;
+                          });
+                        },
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
             ),
-            TextField(
-              controller: idController,
-              textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(labelText: 'Unique ID'),
+            FilledButton(
+              onPressed: () async {
+                final name = nameController.text.trim();
+                final id = idController.text.trim().toUpperCase();
+                if (name.isEmpty || id.isEmpty) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    const SnackBar(content: Text('Enter member name and unique ID.')),
+                  );
+                  return;
+                }
+                final added = await context.read<AppState>().addMemberToGroup(
+                  groupId: groupId,
+                  name: '$selectedEmoji $name',
+                  uniqueId: id,
+                );
+                if (!mounted) {
+                  return;
+                }
+                if (!added) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    SnackBar(content: Text('Member with ID $id already exists.')),
+                  );
+                  return;
+                }
+                if (!dialogContext.mounted) {
+                  return;
+                }
+                Navigator.pop(dialogContext);
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  const SnackBar(content: Text('Member added to group.')),
+                );
+              },
+              child: const Text('Add'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final name = nameController.text.trim();
-              final id = idController.text.trim().toUpperCase();
-              if (name.isEmpty || id.isEmpty) {
-                return;
-              }
-              context
-                  .read<AppState>()
-                  .addMemberToGroup(groupId: groupId, name: name, uniqueId: id);
-              Navigator.pop(dialogContext);
-            },
-            child: const Text('Add'),
-          ),
-        ],
       ),
     );
     nameController.dispose();
@@ -808,13 +1240,13 @@ class _GroupsPageState extends State<GroupsPage> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               final id = idController.text.trim().toUpperCase();
               final name = nameController.text.trim();
               if (id.isEmpty) {
                 return;
               }
-              context.read<AppState>().sendDirectMessage(
+              await context.read<AppState>().sendDirectMessage(
                     targetUniqueId: id,
                     targetName: name,
                     sender: context.read<AppState>().profile.uniqueId,
@@ -825,6 +1257,9 @@ class _GroupsPageState extends State<GroupsPage> {
                 selectedDirectId = id;
                 mode = ChatPanelMode.personal;
               });
+              if (!dialogContext.mounted) {
+                return;
+              }
               Navigator.pop(dialogContext);
             },
             child: const Text('Open'),
@@ -840,6 +1275,7 @@ class _GroupsPageState extends State<GroupsPage> {
   Future<void> _pickAndShareGroupFile(String groupId) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
+      withData: true,
       allowedExtensions: ['pdf', 'doc', 'docx', 'txt', 'png', 'jpg', 'jpeg'],
     );
     if (result == null || result.files.isEmpty) {
@@ -851,8 +1287,10 @@ class _GroupsPageState extends State<GroupsPage> {
     final appState = context.read<AppState>();
 
     final file = result.files.single;
-    final fileRef =
-        kIsWeb ? 'web://${file.name}' : (file.path ?? 'unknown://file');
+    final bytes = file.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      return;
+    }
     final lower = file.name.toLowerCase();
     String fileType = 'Document';
     if (lower.endsWith('.pdf')) {
@@ -863,21 +1301,25 @@ class _GroupsPageState extends State<GroupsPage> {
       fileType = 'Image';
     }
 
-    appState.addGroupAttachment(
+    final attachment = await appState.addGroupAttachment(
       groupId: groupId,
       fileName: file.name,
-      fileRef: fileRef,
+      fileBytes: bytes,
       fileType: fileType,
       sentBy: appState.profile.uniqueId,
     );
 
-    appState.sendGroupMessage(
+    if (attachment == null) {
+      return;
+    }
+
+    await appState.sendGroupMessage(
       groupId: groupId,
       sender: appState.profile.uniqueId,
       content: 'Shared $fileType',
       isMine: true,
       attachmentName: file.name,
-      attachmentRef: fileRef,
+      attachmentRef: attachment.fileRef,
       attachmentType: fileType,
     );
   }
@@ -885,6 +1327,7 @@ class _GroupsPageState extends State<GroupsPage> {
   Future<void> _pickAndSendDirectFile(String targetId) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
+      withData: true,
       allowedExtensions: ['pdf', 'doc', 'docx', 'txt', 'png', 'jpg', 'jpeg'],
     );
     if (result == null || result.files.isEmpty || !mounted) {
@@ -893,8 +1336,10 @@ class _GroupsPageState extends State<GroupsPage> {
 
     final appState = context.read<AppState>();
     final file = result.files.single;
-    final fileRef =
-        kIsWeb ? 'web://${file.name}' : (file.path ?? 'unknown://file');
+    final bytes = file.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      return;
+    }
     final lower = file.name.toLowerCase();
     String fileType = 'Document';
     if (lower.endsWith('.pdf')) {
@@ -905,15 +1350,121 @@ class _GroupsPageState extends State<GroupsPage> {
       fileType = 'Image';
     }
 
-    appState.sendDirectMessage(
+    await appState.uploadDirectAttachment(
       targetUniqueId: targetId,
       sender: appState.profile.uniqueId,
-      content: 'Shared $fileType',
-      isMine: true,
-      attachmentName: file.name,
-      attachmentRef: fileRef,
-      attachmentType: fileType,
+      fileName: file.name,
+      fileBytes: bytes,
+      fileType: fileType,
     );
+  }
+
+  Future<void> _confirmDeleteGroup(BuildContext context, GroupItem group) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Group'),
+        content: Text(
+          'Delete ${_nameWithoutEmoji(group.name)} and all its messages?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true || !mounted) {
+      return;
+    }
+
+    await context.read<AppState>().deleteGroup(group.id);
+    final groups = context.read<AppState>().groups;
+    setState(() {
+      selectedGroupId = groups.isEmpty ? null : groups.first.id;
+    });
+  }
+
+  Future<void> _confirmRemoveMember({
+    required BuildContext context,
+    required String groupId,
+    required GroupMember member,
+  }) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remove Member'),
+        content: Text('Remove ${_nameWithoutEmoji(member.name)} from this group?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) {
+      return;
+    }
+    final removed = await context.read<AppState>().removeMemberFromGroup(
+          groupId: groupId,
+          uniqueId: member.uniqueId,
+        );
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(this.context).showSnackBar(
+      SnackBar(
+        content: Text(
+          removed
+              ? 'Member removed from group.'
+              : 'Unable to remove member right now.',
+        ),
+      ),
+    );
+  }
+
+  String _emojiFromText(String text) {
+    final value = text.trimLeft();
+    if (value.isEmpty) {
+      return '📚';
+    }
+    final first = String.fromCharCode(value.runes.first);
+    return _iconEmojis.contains(first) ? first : '📚';
+  }
+
+  String _nameWithoutEmoji(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      return trimmed;
+    }
+    final first = String.fromCharCode(trimmed.runes.first);
+    if (_iconEmojis.contains(first)) {
+      return trimmed.substring(first.length).trimLeft();
+    }
+    return trimmed;
+  }
+
+  (String, String) _splitEmojiPrefix(String text, {required String fallback}) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      return (fallback, '');
+    }
+    final first = String.fromCharCode(trimmed.runes.first);
+    if (_iconEmojis.contains(first)) {
+      return (first, trimmed.substring(first.length).trimLeft());
+    }
+    return (fallback, trimmed);
   }
 
   Future<void> _showEmojiPicker(
@@ -986,7 +1537,7 @@ class _GroupsPageState extends State<GroupsPage> {
     controller.selection = TextSelection.collapsed(offset: nextOffset);
   }
 
-  Widget _attachmentChip(String name, String type) {
+  Widget _attachmentChip(String name, String type, {String? storageRef}) {
     final icon = type == 'Image'
         ? Icons.image_outlined
         : type == 'PDF'
@@ -1011,8 +1562,116 @@ class _GroupsPageState extends State<GroupsPage> {
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ),
+          if (storageRef != null && storageRef.trim().isNotEmpty) ...[
+            const SizedBox(width: 6),
+            IconButton(
+              tooltip: 'Open file',
+              onPressed: () async {
+                await _openSharedAttachment(
+                  storageRef: storageRef,
+                  fileName: name,
+                  download: false,
+                );
+              },
+              icon: const Icon(Icons.open_in_new_rounded, size: 16),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+            ),
+            IconButton(
+              tooltip: 'Download to device',
+              onPressed: () async {
+                await _openSharedAttachment(
+                  storageRef: storageRef,
+                  fileName: name,
+                  download: true,
+                );
+              },
+              icon: const Icon(Icons.download_rounded, size: 16),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  Widget _groupEmojiBox(GroupItem group) {
+    return Container(
+      height: 42, width: 42,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.75),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(_emojiFromText(group.name), style: const TextStyle(fontSize: 23)),
+    );
+  }
+
+  Future<String?> _groupPhotoFuture(String? path) {
+    if (path == null || path.isEmpty) return Future.value(null);
+    return _groupPhotoFutures.putIfAbsent(
+      path,
+      () => context.read<AppState>().createFileAccessUrl(path),
+    );
+  }
+
+  Future<void> _pickGroupPhoto(BuildContext context, String groupId) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty || !mounted) return;
+    final bytes = result.files.single.bytes;
+    if (bytes == null || bytes.isEmpty) return;
+    final oldGroup = context.read<AppState>().groups
+        .where((g) => g.id == groupId)
+        .firstOrNull;
+    if (oldGroup?.photoPath != null) _groupPhotoFutures.remove(oldGroup!.photoPath);
+    final error = await context.read<AppState>().uploadGroupPhoto(
+      groupId: groupId,
+      fileBytes: bytes,
+      originalFileName: result.files.single.name,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(error ?? 'Group photo updated!'),
+      backgroundColor: error != null ? Colors.redAccent : null,
+    ));
+  }
+
+  Future<void> _openSharedAttachment({
+    required String storageRef,
+    required String fileName,
+    required bool download,
+  }) async {
+    if (storageRef.trim().isEmpty) {
+      return;
+    }
+
+    final signedUrl =
+        await context.read<AppState>().createFileAccessUrl(storageRef);
+    if (!mounted) {
+      return;
+    }
+
+    final resolvedUrl = signedUrl ?? storageRef;
+    bool launched = false;
+    if (kIsWeb) {
+      launched = download
+          ? await downloadUrlInBrowser(resolvedUrl, fileName)
+          : openUrlInNewTab(resolvedUrl);
+    } else {
+      final uri = Uri.tryParse(resolvedUrl);
+      if (uri != null) {
+        launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    }
+
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not ${download ? 'download' : 'open'} $fileName.')),
+      );
+    }
   }
 }

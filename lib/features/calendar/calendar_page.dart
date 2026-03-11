@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -12,14 +15,26 @@ class CalendarPage extends StatefulWidget {
   State<CalendarPage> createState() => _CalendarPageState();
 }
 
-class _CalendarPageState extends State<CalendarPage> {
+class _CalendarPageState extends State<CalendarPage>
+  with SingleTickerProviderStateMixin {
   DateTime _selectedDate = DateTime.now();
   late DateTime _visibleMonth;
+  late final AnimationController _bgController;
 
   @override
   void initState() {
     super.initState();
     _visibleMonth = DateTime(_selectedDate.year, _selectedDate.month);
+    _bgController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _bgController.dispose();
+    super.dispose();
   }
 
   @override
@@ -38,41 +53,96 @@ class _CalendarPageState extends State<CalendarPage> {
         .toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Calendar')),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final wide = constraints.maxWidth > 920;
-          if (wide) {
-            return Row(
+      appBar: AppBar(
+        title: Text(
+          'Calendar',
+          style: GoogleFonts.fredoka(fontWeight: FontWeight.w600),
+        ),
+        foregroundColor: const Color(0xFF2E3C54),
+        backgroundColor: const Color(0xFFEAF0F6),
+      ),
+      body: AnimatedBuilder(
+        animation: _bgController,
+        builder: (context, _) {
+          final t = _bgController.value;
+          final dy = math.sin(t * math.pi * 2) * 10;
+          return Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFF7F2EA), Color(0xFFE8F1F8), Color(0xFFF6ECE4)],
+              ),
+            ),
+            child: Stack(
               children: [
-                SizedBox(width: 380, child: _calendarPane(context, dayTasks)),
-                const VerticalDivider(width: 1),
-                Expanded(
-                  child: _statusPane(
-                    context,
-                    completed: completed,
-                    inProgress: inProgress,
-                    notCompleted: notCompleted,
-                  ),
+                Positioned(
+                  right: -70,
+                  top: -80 + dy,
+                  child: _bgGlow(250, const Color(0xFFBEDCED)),
+                ),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wide = constraints.maxWidth > 920;
+                    final child = wide
+                        ? Row(
+                            children: [
+                              SizedBox(width: 380, child: _calendarPane(context, dayTasks)),
+                              const VerticalDivider(width: 1),
+                              Expanded(
+                                child: _statusPane(
+                                  context,
+                                  completed: completed,
+                                  inProgress: inProgress,
+                                  notCompleted: notCompleted,
+                                ),
+                              ),
+                            ],
+                          )
+                        : SingleChildScrollView(
+                            child: Column(
+                              children: [
+                                _calendarPane(context, dayTasks),
+                                const Divider(height: 1),
+                                _statusPaneMobile(
+                                  context,
+                                  completed: completed,
+                                  inProgress: inProgress,
+                                  notCompleted: notCompleted,
+                                ),
+                              ],
+                            ),
+                          );
+                    return Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1220),
+                        child: child,
+                      ),
+                    );
+                  },
                 ),
               ],
-            );
-          }
-          return Column(
-            children: [
-              _calendarPane(context, dayTasks),
-              const Divider(height: 1),
-              Expanded(
-                child: _statusPane(
-                  context,
-                  completed: completed,
-                  inProgress: inProgress,
-                  notCompleted: notCompleted,
-                ),
-              ),
-            ],
+            ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _bgGlow(double size, Color color) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              color.withValues(alpha: 0.32),
+              color.withValues(alpha: 0),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -119,8 +189,10 @@ class _CalendarPageState extends State<CalendarPage> {
             ),
           ),
           const SizedBox(height: 8),
-          Row(
-            children: const [
+          const Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
               _LegendDot(color: Colors.green, label: 'Completed'),
               _LegendDot(color: Colors.amber, label: 'In Progress'),
               _LegendDot(color: Colors.redAccent, label: 'Not Completed'),
@@ -147,87 +219,117 @@ class _CalendarPageState extends State<CalendarPage> {
   }) {
     return Padding(
       padding: const EdgeInsets.all(12),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 760;
+          if (isNarrow) {
+            return ListView(
+              children: [
+                _buildStatusCard('Not Completed', notCompleted, Colors.redAccent),
+                _buildStatusCard('In Progress', inProgress, Colors.amber),
+                _buildStatusCard('Completed', completed, Colors.green),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: _buildStatusColumn('Not Completed', notCompleted, Colors.redAccent)),
+              Expanded(child: _buildStatusColumn('In Progress', inProgress, Colors.amber)),
+              Expanded(child: _buildStatusColumn('Completed', completed, Colors.green)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _statusPaneMobile(
+    BuildContext context, {
+    required List<TodoTask> completed,
+    required List<TodoTask> inProgress,
+    required List<TodoTask> notCompleted,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
       child: Column(
         children: [
-          Expanded(
-            child: Row(
-              children: [
-                _buildStatusColumn(
-                    'Not Completed', notCompleted, Colors.redAccent),
-                _buildStatusColumn('In Progress', inProgress, Colors.amber),
-                _buildStatusColumn('Completed', completed, Colors.green),
-              ],
-            ),
-          ),
+          _buildStatusCard('Not Completed', notCompleted, Colors.redAccent),
+          _buildStatusCard('In Progress', inProgress, Colors.amber),
+          _buildStatusCard('Completed', completed, Colors.green),
         ],
       ),
     );
   }
 
+  Widget _buildStatusCard(String title, List<TodoTask> tasks, Color color) {
+    return SizedBox(
+      height: 220,
+      child: _buildStatusColumn(title, tasks, color),
+    );
+  }
+
   Widget _buildStatusColumn(String title, List<TodoTask> tasks, Color color) {
-    return Expanded(
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 280),
-        margin: const EdgeInsets.all(6),
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Column(
-          children: [
-            Text(
-              '$title (${tasks.length})',
-              style: TextStyle(color: color, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 240),
-                child: tasks.isEmpty
-                    ? Center(
-                        key: ValueKey('empty-$title'),
-                        child: const Text('No tasks'),
-                      )
-                    : ListView.builder(
-                        key: ValueKey('list-$title-${tasks.length}'),
-                        itemCount: tasks.length,
-                        itemBuilder: (context, index) {
-                          final task = tasks[index];
-                          return AnimatedSlide(
-                            duration:
-                                Duration(milliseconds: 220 + (index * 40)),
-                            offset: Offset.zero,
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border:
-                                    Border.all(color: const Color(0xFFDCD4EF)),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(task.title,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w700)),
-                                  const SizedBox(height: 4),
-                                  Text('${task.subject} • ${task.type}'),
-                                  Text(DateFormat('h:mm a')
-                                      .format(task.dateTime)),
-                                ],
-                              ),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 280),
+      margin: const EdgeInsets.all(6),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            '$title (${tasks.length})',
+            style: TextStyle(color: color, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 240),
+              child: tasks.isEmpty
+                  ? Center(
+                      key: ValueKey('empty-$title'),
+                      child: const Text('No tasks'),
+                    )
+                  : ListView.builder(
+                      key: ValueKey('list-$title-${tasks.length}'),
+                      itemCount: tasks.length,
+                      itemBuilder: (context, index) {
+                        final task = tasks[index];
+                        return AnimatedSlide(
+                          duration:
+                              Duration(milliseconds: 220 + (index * 40)),
+                          offset: Offset.zero,
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border:
+                                  Border.all(color: const Color(0xFFDCD4EF)),
                             ),
-                          );
-                        },
-                      ),
-              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(task.title,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w700)),
+                                const SizedBox(height: 4),
+                                Text('${task.subject} • ${task.type}'),
+                                Text(DateFormat('h:mm a')
+                                    .format(task.dateTime)),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -409,25 +511,22 @@ class _LegendDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        ),
+      ],
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -13,69 +14,104 @@ class TodoBoardPage extends StatelessWidget {
     final appState = context.watch<AppState>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('New To-do')),
+      appBar: AppBar(
+        title: Text(
+          'New To-do',
+          style: GoogleFonts.fredoka(fontWeight: FontWeight.w600),
+        ),
+        foregroundColor: const Color(0xFF2E3C54),
+        backgroundColor: const Color(0xFFEAF0F6),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddTaskDialog(context),
         icon: const Icon(Icons.add),
         label: const Text('Add Task'),
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                _scoreBox('Completed', appState.completedCount, Colors.green),
-                _scoreBox(
-                  'In progress',
-                  appState.inProgressCount,
-                  Colors.amber,
-                ),
-                _scoreBox(
-                  'Not completed',
-                  appState.notCompletedCount,
-                  Colors.redAccent,
-                ),
-              ],
+      body: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeOutCubic,
+        builder: (context, value, child) {
+          return Opacity(
+            opacity: value,
+            child: Transform.translate(
+              offset: Offset(0, (1 - value) * 16),
+              child: child,
+            ),
+          );
+        },
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFF7F2EA), Color(0xFFE8F1F8), Color(0xFFF6ECE4)],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: LinearProgressIndicator(
-              minHeight: 10,
-              value: appState.healthScore / 100,
-              borderRadius: BorderRadius.circular(30),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1220),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        _scoreBox('Completed', appState.completedCount, Colors.green),
+                        _scoreBox(
+                          'In progress',
+                          appState.inProgressCount,
+                          Colors.amber,
+                        ),
+                        _scoreBox(
+                          'Not completed',
+                          appState.notCompletedCount,
+                          Colors.redAccent,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: LinearProgressIndicator(
+                      minHeight: 10,
+                      value: appState.healthScore / 100,
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text('Health Score: ${appState.healthScore}/100'),
+                  ),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        _buildColumn(
+                          context,
+                          'Not Completed',
+                          TaskStatus.notCompleted,
+                          Colors.redAccent,
+                        ),
+                        _buildColumn(
+                          context,
+                          'In Progress',
+                          TaskStatus.inProgress,
+                          Colors.amber,
+                        ),
+                        _buildColumn(
+                          context,
+                          'Completed',
+                          TaskStatus.completed,
+                          Colors.green,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text('Health Score: ${appState.healthScore}/100'),
-          ),
-          Expanded(
-            child: Row(
-              children: [
-                _buildColumn(
-                  context,
-                  'Not Completed',
-                  TaskStatus.notCompleted,
-                  Colors.redAccent,
-                ),
-                _buildColumn(
-                  context,
-                  'In Progress',
-                  TaskStatus.inProgress,
-                  Colors.amber,
-                ),
-                _buildColumn(
-                  context,
-                  'Completed',
-                  TaskStatus.completed,
-                  Colors.green,
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
