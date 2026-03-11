@@ -41,6 +41,23 @@ flutter run -d chrome \
 	--dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY
 ```
 
+## Deploy On Vercel
+
+This project is a Flutter web app, so Vercel will not run it correctly with default settings.
+
+Required:
+- Add `SUPABASE_ANON_KEY` in Vercel Project Settings > Environment Variables
+- Keep the project root at repository root
+- Use the included `vercel.json`
+
+What was blocking deployment:
+- No Vercel build config for Flutter
+- Vercel does not include Flutter SDK by default
+- App throws at startup if `SUPABASE_ANON_KEY` is missing
+- Flutter web needs SPA rewrite to `index.html`
+
+After adding the environment variable, redeploy the project.
+
 ## Auth Flow Implemented
 
 - Signup: `name + phone + college + password`

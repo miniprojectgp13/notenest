@@ -1,0 +1,11 @@
+{
+  "installCommand": "git clone https://github.com/flutter/flutter.git --depth 1 -b stable $HOME/flutter ; export PATH=$PATH:$HOME/flutter/bin ; flutter config --enable-web ; flutter pub get",
+  "buildCommand": "export PATH=$PATH:$HOME/flutter/bin ; flutter build web --release --dart-define=SUPABASE_URL=https://zmtytwilsdpcpzbhjeac.supabase.co --dart-define=SUPABASE_ANON_KEY=sb_publishable_qx83lD_3ChjN9EgGymD0oQ_x1z5cxWN",
+  "outputDirectory": "build/web",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
