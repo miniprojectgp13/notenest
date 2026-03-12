@@ -1,5 +1,6 @@
 class ChatMessage {
   ChatMessage({
+    this.id,
     required this.sender,
     required this.content,
     required this.sentAt,
@@ -9,6 +10,7 @@ class ChatMessage {
     this.attachmentType,
   });
 
+  String? id;
   String sender;
   String content;
   DateTime sentAt;

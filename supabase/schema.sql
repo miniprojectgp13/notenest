@@ -257,6 +257,19 @@ create table if not exists public.notes (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.note_folders (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.student_users(id) on delete cascade,
+  name text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table if exists public.notes
+  add column if not exists folder_id uuid references public.note_folders(id) on delete set null;
+
+create index if not exists notes_folder_id_idx
+  on public.notes (folder_id);
+
 create table if not exists public.url_folders (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.student_users(id) on delete cascade,
@@ -347,6 +360,7 @@ create table if not exists public.direct_messages (
 
 alter table public.user_profiles enable row level security;
 alter table public.notes enable row level security;
+alter table public.note_folders enable row level security;
 alter table public.url_folders enable row level security;
 alter table public.url_subfolders enable row level security;
 alter table public.saved_urls enable row level security;
@@ -368,6 +382,14 @@ create policy "user_profiles_owner_all"
 drop policy if exists "notes_owner_all" on public.notes;
 create policy "notes_owner_all"
   on public.notes
+  for all
+  to anon, authenticated
+  using (user_id = coalesce((auth.jwt() ->> 'sub')::uuid, user_id))
+  with check (user_id = coalesce((auth.jwt() ->> 'sub')::uuid, user_id));
+
+drop policy if exists "note_folders_owner_all" on public.note_folders;
+create policy "note_folders_owner_all"
+  on public.note_folders
   for all
   to anon, authenticated
   using (user_id = coalesce((auth.jwt() ->> 'sub')::uuid, user_id))

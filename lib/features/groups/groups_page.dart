@@ -9,7 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/models/group_item.dart';
 import '../../core/state/app_state.dart';
 import '../../core/utils/web_file_utils_stub.dart'
-  if (dart.library.html) '../../core/utils/web_file_utils_web.dart';
+    if (dart.library.html) '../../core/utils/web_file_utils_web.dart';
 
 enum ChatPanelMode { groups, personal }
 
@@ -131,7 +131,8 @@ class _GroupsPageState extends State<GroupsPage> {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
-                        onPressed: () => setState(() => _showChatMobile = false),
+                        onPressed: () =>
+                            setState(() => _showChatMobile = false),
                         icon: const Icon(Icons.arrow_back),
                         label: const Text('Back'),
                       ),
@@ -346,7 +347,8 @@ class _GroupsPageState extends State<GroupsPage> {
             width: 26,
             height: 26,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _sidebarLeadingBox(_emojiFromText(group.name)),
+            errorBuilder: (_, __, ___) =>
+                _sidebarLeadingBox(_emojiFromText(group.name)),
           ),
         );
       },
@@ -381,8 +383,12 @@ class _GroupsPageState extends State<GroupsPage> {
                           return ClipRRect(
                             borderRadius: BorderRadius.circular(12),
                             child: Image.network(
-                              url, width: 42, height: 42, fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => _groupEmojiBox(group),
+                              url,
+                              width: 42,
+                              height: 42,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  _groupEmojiBox(group),
                             ),
                           );
                         }
@@ -390,14 +396,16 @@ class _GroupsPageState extends State<GroupsPage> {
                       },
                     ),
                     Positioned(
-                      right: 0, bottom: 0,
+                      right: 0,
+                      bottom: 0,
                       child: Container(
                         padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
                           color: const Color(0xFF6D60D8),
                           borderRadius: BorderRadius.circular(5),
                         ),
-                        child: const Icon(Icons.camera_alt, size: 10, color: Colors.white),
+                        child: const Icon(Icons.camera_alt,
+                            size: 10, color: Colors.white),
                       ),
                     ),
                   ],
@@ -440,6 +448,11 @@ class _GroupsPageState extends State<GroupsPage> {
                 onPressed: () => _confirmDeleteGroup(context, group),
                 icon: const Icon(Icons.delete_outline_rounded),
               ),
+              IconButton(
+                tooltip: 'Clear Chat',
+                onPressed: () => _confirmClearGroupChat(context, group),
+                icon: const Icon(Icons.cleaning_services_outlined),
+              ),
             ],
           ),
         ),
@@ -463,7 +476,8 @@ class _GroupsPageState extends State<GroupsPage> {
                         ),
                         label: Text(
                           '${_nameWithoutEmoji(member.name)} (${member.uniqueId})',
-                          style: GoogleFonts.nunito(fontWeight: FontWeight.w700),
+                          style:
+                              GoogleFonts.nunito(fontWeight: FontWeight.w700),
                         ),
                         deleteIcon: const Icon(Icons.close, size: 18),
                         onDeleted: () => _confirmRemoveMember(
@@ -515,7 +529,8 @@ class _GroupsPageState extends State<GroupsPage> {
                                 download: false,
                               );
                             },
-                            icon: const Icon(Icons.open_in_new_rounded, size: 17),
+                            icon:
+                                const Icon(Icons.open_in_new_rounded, size: 17),
                           ),
                           IconButton(
                             tooltip: 'Download to device',
@@ -578,13 +593,40 @@ class _GroupsPageState extends State<GroupsPage> {
                             child: _attachmentChip(
                               message.attachmentName!,
                               message.attachmentType ?? 'File',
-                                storageRef: message.attachmentRef,
+                              storageRef: message.attachmentRef,
                             ),
                           ),
                         Text(
                           '${message.sender} • ${DateFormat('h:mm a').format(message.sentAt)}',
                           style: const TextStyle(fontSize: 11),
                         ),
+                        if (message.isMine && (message.id ?? '').isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: InkWell(
+                              onTap: () => _confirmDeleteGroupMessage(
+                                context: context,
+                                group: group,
+                                message: message,
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.delete_outline_rounded,
+                                      size: 14, color: Color(0xFF9B1A36)),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Delete',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Color(0xFF9B1A36),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         if (message.isMine)
                           const Icon(Icons.done_all_rounded,
                               size: 14, color: Color(0xFF2F8DFF)),
@@ -814,7 +856,8 @@ class _GroupsPageState extends State<GroupsPage> {
                         alignment: Alignment.centerLeft,
                         child: Text(
                           'Group Icon',
-                          style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+                          style:
+                              GoogleFonts.nunito(fontWeight: FontWeight.w800),
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -856,7 +899,8 @@ class _GroupsPageState extends State<GroupsPage> {
                             const SizedBox(width: 10),
                             OutlinedButton.icon(
                               onPressed: () async {
-                                final result = await FilePicker.platform.pickFiles(
+                                final result =
+                                    await FilePicker.platform.pickFiles(
                                   type: FileType.image,
                                   withData: true,
                                 );
@@ -1011,7 +1055,8 @@ class _GroupsPageState extends State<GroupsPage> {
                         if (usedIds.contains(id)) {
                           if (mounted) {
                             ScaffoldMessenger.of(this.context).showSnackBar(
-                              SnackBar(content: Text('Duplicate Unique ID: $id')),
+                              SnackBar(
+                                  content: Text('Duplicate Unique ID: $id')),
                             );
                           }
                           return;
@@ -1033,7 +1078,8 @@ class _GroupsPageState extends State<GroupsPage> {
                     if (created == null) {
                       if (mounted) {
                         ScaffoldMessenger.of(this.context).showSnackBar(
-                          const SnackBar(content: Text('Unable to create group.')),
+                          const SnackBar(
+                              content: Text('Unable to create group.')),
                         );
                       }
                       return;
@@ -1090,7 +1136,8 @@ class _GroupsPageState extends State<GroupsPage> {
 
   Future<void> _showRenameGroupDialog(
       BuildContext context, GroupItem group) async {
-    final parsedGroup = _splitEmojiPrefix(group.name, fallback: _iconEmojis.first);
+    final parsedGroup =
+        _splitEmojiPrefix(group.name, fallback: _iconEmojis.first);
     final controller = TextEditingController(text: parsedGroup.$2);
     String selectedEmoji = parsedGroup.$1;
     await showDialog<void>(
@@ -1137,9 +1184,9 @@ class _GroupsPageState extends State<GroupsPage> {
                   return;
                 }
                 await context.read<AppState>().renameGroup(
-                  groupId: group.id,
-                  newName: '$selectedEmoji $newName',
-                );
+                      groupId: group.id,
+                      newName: '$selectedEmoji $newName',
+                    );
                 if (!dialogContext.mounted) {
                   return;
                 }
@@ -1207,21 +1254,23 @@ class _GroupsPageState extends State<GroupsPage> {
                 final id = idController.text.trim().toUpperCase();
                 if (name.isEmpty || id.isEmpty) {
                   ScaffoldMessenger.of(this.context).showSnackBar(
-                    const SnackBar(content: Text('Enter member name and unique ID.')),
+                    const SnackBar(
+                        content: Text('Enter member name and unique ID.')),
                   );
                   return;
                 }
                 final added = await context.read<AppState>().addMemberToGroup(
-                  groupId: groupId,
-                  name: '$selectedEmoji $name',
-                  uniqueId: id,
-                );
+                      groupId: groupId,
+                      name: '$selectedEmoji $name',
+                      uniqueId: id,
+                    );
                 if (!mounted) {
                   return;
                 }
                 if (!added) {
                   ScaffoldMessenger.of(this.context).showSnackBar(
-                    SnackBar(content: Text('Member with ID $id already exists.')),
+                    SnackBar(
+                        content: Text('Member with ID $id already exists.')),
                   );
                   return;
                 }
@@ -1390,7 +1439,8 @@ class _GroupsPageState extends State<GroupsPage> {
     );
   }
 
-  Future<void> _confirmDeleteGroup(BuildContext context, GroupItem group) async {
+  Future<void> _confirmDeleteGroup(
+      BuildContext context, GroupItem group) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -1422,6 +1472,78 @@ class _GroupsPageState extends State<GroupsPage> {
     });
   }
 
+  Future<void> _confirmClearGroupChat(
+      BuildContext context, GroupItem group) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Clear Group Chat'),
+        content: Text(
+          'Delete all chat messages and shared files in ${_nameWithoutEmoji(group.name)}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Clear Chat'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true || !mounted) {
+      return;
+    }
+
+    await context.read<AppState>().clearGroupChat(group.id);
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(this.context).showSnackBar(
+      const SnackBar(content: Text('Group chat deleted.')),
+    );
+  }
+
+  Future<void> _confirmDeleteGroupMessage({
+    required BuildContext context,
+    required GroupItem group,
+    required ChatMessage message,
+  }) async {
+    final messageId = (message.id ?? '').trim();
+    if (messageId.isEmpty) {
+      return;
+    }
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Message'),
+        content: const Text('Delete this message?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) {
+      return;
+    }
+
+    await context.read<AppState>().deleteGroupMessage(
+          groupId: group.id,
+          messageId: messageId,
+        );
+  }
+
   Future<void> _confirmRemoveMember({
     required BuildContext context,
     required String groupId,
@@ -1431,7 +1553,8 @@ class _GroupsPageState extends State<GroupsPage> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Remove Member'),
-        content: Text('Remove ${_nameWithoutEmoji(member.name)} from this group?'),
+        content:
+            Text('Remove ${_nameWithoutEmoji(member.name)} from this group?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -1629,13 +1752,15 @@ class _GroupsPageState extends State<GroupsPage> {
 
   Widget _groupEmojiBox(GroupItem group) {
     return Container(
-      height: 42, width: 42,
+      height: 42,
+      width: 42,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.75),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(_emojiFromText(group.name), style: const TextStyle(fontSize: 23)),
+      child: Text(_emojiFromText(group.name),
+          style: const TextStyle(fontSize: 23)),
     );
   }
 
@@ -1655,15 +1780,18 @@ class _GroupsPageState extends State<GroupsPage> {
     if (result == null || result.files.isEmpty || !mounted) return;
     final bytes = result.files.single.bytes;
     if (bytes == null || bytes.isEmpty) return;
-    final oldGroup = context.read<AppState>().groups
+    final oldGroup = context
+        .read<AppState>()
+        .groups
         .where((g) => g.id == groupId)
         .firstOrNull;
-    if (oldGroup?.photoPath != null) _groupPhotoFutures.remove(oldGroup!.photoPath);
+    if (oldGroup?.photoPath != null)
+      _groupPhotoFutures.remove(oldGroup!.photoPath);
     final error = await context.read<AppState>().uploadGroupPhoto(
-      groupId: groupId,
-      fileBytes: bytes,
-      originalFileName: result.files.single.name,
-    );
+          groupId: groupId,
+          fileBytes: bytes,
+          originalFileName: result.files.single.name,
+        );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(error ?? 'Group photo updated!'),
@@ -1701,7 +1829,9 @@ class _GroupsPageState extends State<GroupsPage> {
 
     if (!launched && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not ${download ? 'download' : 'open'} $fileName.')),
+        SnackBar(
+            content:
+                Text('Could not ${download ? 'download' : 'open'} $fileName.')),
       );
     }
   }

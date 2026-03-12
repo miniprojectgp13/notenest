@@ -15,7 +15,7 @@ import '../models/note_item.dart';
 import '../models/todo_task.dart';
 import '../models/user_profile.dart';
 import '../utils/web_file_utils_stub.dart'
-  if (dart.library.html) '../utils/web_file_utils_web.dart';
+    if (dart.library.html) '../utils/web_file_utils_web.dart';
 
 class StudentAuthUser {
   StudentAuthUser({
@@ -91,6 +91,7 @@ class AppState extends ChangeNotifier {
   ];
 
   final List<NoteItem> _notes = [];
+  final List<NoteFolder> _noteFolders = [];
   final List<GroupItem> _groups = [];
   final Map<String, List<ChatMessage>> _directChats = {};
   final Map<String, String> _directChatNames = {};
@@ -109,6 +110,7 @@ class AppState extends ChangeNotifier {
 
   List<TodoTask> get tasks => List.unmodifiable(_tasks);
   List<NoteItem> get notes => List.unmodifiable(_notes);
+  List<NoteFolder> get noteFolders => List.unmodifiable(_noteFolders);
   List<GroupItem> get groups => List.unmodifiable(_groups);
   List<UrlFolder> get urlFolders => List.unmodifiable(_urlFolders);
   List<SavedUrlItem> get savedUrls => List.unmodifiable(_savedUrls);
@@ -171,6 +173,7 @@ class AppState extends ChangeNotifier {
   Future<void> _clearSession() async {
     _currentUser = null;
     _notes.clear();
+    _noteFolders.clear();
     _groups.clear();
     _directChats.clear();
     _directChatNames.clear();
@@ -305,6 +308,7 @@ class AppState extends ChangeNotifier {
       }
       await Future.wait([
         _runLoadSafely(_loadProfile),
+        _runLoadSafely(_loadNoteFolders),
         _runLoadSafely(_loadNotes),
         _runLoadSafely(_loadLinks),
         _runLoadSafely(_loadGroups),
@@ -320,6 +324,7 @@ class AppState extends ChangeNotifier {
     try {
       // Check both tables that are required for core functionality.
       await _supabase.from('notes').select('id').limit(1);
+      await _supabase.from('note_folders').select('id').limit(1);
       await _supabase.from('url_folders').select('id').limit(1);
       return true;
     } on PostgrestException {
@@ -360,7 +365,8 @@ class AppState extends ChangeNotifier {
       'emoji': profile.emoji,
       'unique_id': profile.uniqueId,
       'additional_note': profile.additionalNote,
-      'extra_fields': profile.extraFields.map((field) => field.toJson()).toList(),
+      'extra_fields':
+          profile.extraFields.map((field) => field.toJson()).toList(),
       'avatar_path': profile.avatarPath,
       'updated_at': DateTime.now().toIso8601String(),
     });
@@ -431,9 +437,41 @@ class AppState extends ChangeNotifier {
               year: row['year'] as String? ?? '2026',
               type: row['type'] as String? ?? 'Document',
               keywords: row['keywords'] as String? ?? '',
-              createdAt: DateTime.tryParse(row['created_at'] as String? ?? '') ??
-                  DateTime.now(),
+              createdAt:
+                  DateTime.tryParse(row['created_at'] as String? ?? '') ??
+                      DateTime.now(),
+              folderId: row['folder_id'] as String?,
               localPath: row['file_path'] as String?,
+            );
+          },
+        ),
+      );
+  }
+
+  Future<void> _loadNoteFolders() async {
+    final user = _currentUser;
+    if (user == null) {
+      return;
+    }
+
+    final rows = await _supabase
+        .from('note_folders')
+        .select()
+        .eq('user_id', user.id)
+        .order('created_at');
+
+    _noteFolders
+      ..clear()
+      ..addAll(
+        (rows as List).map(
+          (entry) {
+            final row = Map<String, dynamic>.from(entry);
+            return NoteFolder(
+              id: row['id'] as String,
+              name: row['name'] as String? ?? '',
+              createdAt:
+                  DateTime.tryParse(row['created_at'] as String? ?? '') ??
+                      DateTime.now(),
             );
           },
         ),
@@ -458,7 +496,8 @@ class AppState extends ChangeNotifier {
       final row = Map<String, dynamic>.from(entry);
       final id = row['id'] as String;
       folderIds.add(id);
-      folders.add(UrlFolder(id: id, name: row['name'] as String? ?? '', subFolders: []));
+      folders.add(UrlFolder(
+          id: id, name: row['name'] as String? ?? '', subFolders: []));
     }
 
     if (folderIds.isNotEmpty) {
@@ -469,7 +508,8 @@ class AppState extends ChangeNotifier {
           .order('created_at');
       for (final entry in subRows as List) {
         final row = Map<String, dynamic>.from(entry);
-        final folder = folders.where((item) => item.id == row['folder_id']).firstOrNull;
+        final folder =
+            folders.where((item) => item.id == row['folder_id']).firstOrNull;
         if (folder == null) {
           continue;
         }
@@ -503,8 +543,9 @@ class AppState extends ChangeNotifier {
               folderId: row['folder_id'] as String,
               subFolderId: row['subfolder_id'] as String?,
               content: row['content'] as String? ?? '',
-              createdAt: DateTime.tryParse(row['created_at'] as String? ?? '') ??
-                  DateTime.now(),
+              createdAt:
+                  DateTime.tryParse(row['created_at'] as String? ?? '') ??
+                      DateTime.now(),
             );
           },
         ),
@@ -549,7 +590,8 @@ class AppState extends ChangeNotifier {
           .order('added_at');
       for (final entry in memberRows as List) {
         final row = Map<String, dynamic>.from(entry);
-        final group = groups.where((item) => item.id == row['group_id']).firstOrNull;
+        final group =
+            groups.where((item) => item.id == row['group_id']).firstOrNull;
         if (group == null) {
           continue;
         }
@@ -568,7 +610,8 @@ class AppState extends ChangeNotifier {
           .order('sent_at', ascending: false);
       for (final entry in attachmentRows as List) {
         final row = Map<String, dynamic>.from(entry);
-        final group = groups.where((item) => item.id == row['group_id']).firstOrNull;
+        final group =
+            groups.where((item) => item.id == row['group_id']).firstOrNull;
         if (group == null) {
           continue;
         }
@@ -592,12 +635,14 @@ class AppState extends ChangeNotifier {
           .order('sent_at');
       for (final entry in messageRows as List) {
         final row = Map<String, dynamic>.from(entry);
-        final group = groups.where((item) => item.id == row['group_id']).firstOrNull;
+        final group =
+            groups.where((item) => item.id == row['group_id']).firstOrNull;
         if (group == null) {
           continue;
         }
         group.messages.add(
           ChatMessage(
+            id: row['id'] as String?,
             sender: row['sender_unique_id'] as String? ?? '',
             content: row['content'] as String? ?? '',
             sentAt: DateTime.tryParse(row['sent_at'] as String? ?? '') ??
@@ -664,6 +709,7 @@ class AppState extends ChangeNotifier {
       }
       _directChats.putIfAbsent(targetId, () => []).add(
             ChatMessage(
+              id: row['id'] as String?,
               sender: row['sender_unique_id'] as String? ?? '',
               content: row['content'] as String? ?? '',
               sentAt: DateTime.tryParse(row['sent_at'] as String? ?? '') ??
@@ -734,7 +780,8 @@ class AppState extends ChangeNotifier {
     } on PostgrestException catch (error) {
       final msg = error.message.toLowerCase();
       if (msg.contains('function') && msg.contains('update_student_account')) {
-        throw Exception('Database update is pending. Run supabase/schema.sql once, then retry.');
+        throw Exception(
+            'Database update is pending. Run supabase/schema.sql once, then retry.');
       }
       throw Exception(error.message.isEmpty
           ? 'Unable to update account settings right now.'
@@ -770,7 +817,8 @@ class AppState extends ChangeNotifier {
   }
 
   Future<String> downloadProfileAsJson() async {
-    final jsonText = const JsonEncoder.withIndent('  ').convert(profile.toJson());
+    final jsonText =
+        const JsonEncoder.withIndent('  ').convert(profile.toJson());
     if (kIsWeb) {
       final bytes = Uint8List.fromList(utf8.encode(jsonText));
       final objectUrl = createObjectUrlFromBytes(bytes, 'application/json');
@@ -807,7 +855,8 @@ class AppState extends ChangeNotifier {
       'emoji': profile.emoji,
       'unique_id': profile.uniqueId,
       'additional_note': profile.additionalNote,
-      'extra_fields': profile.extraFields.map((field) => field.toJson()).toList(),
+      'extra_fields':
+          profile.extraFields.map((field) => field.toJson()).toList(),
       'avatar_path': profile.avatarPath,
       'updated_at': DateTime.now().toIso8601String(),
     });
@@ -877,7 +926,8 @@ class AppState extends ChangeNotifier {
         'emoji': profile.emoji,
         'unique_id': profile.uniqueId,
         'additional_note': profile.additionalNote,
-        'extra_fields': profile.extraFields.map((field) => field.toJson()).toList(),
+        'extra_fields':
+            profile.extraFields.map((field) => field.toJson()).toList(),
         'avatar_path': storagePath,
         'updated_at': DateTime.now().toIso8601String(),
       });
@@ -928,7 +978,8 @@ class AppState extends ChangeNotifier {
         'emoji': profile.emoji,
         'unique_id': profile.uniqueId,
         'additional_note': profile.additionalNote,
-        'extra_fields': profile.extraFields.map((field) => field.toJson()).toList(),
+        'extra_fields':
+            profile.extraFields.map((field) => field.toJson()).toList(),
         'avatar_path': null,
         'updated_at': DateTime.now().toIso8601String(),
       });
@@ -950,7 +1001,8 @@ class AppState extends ChangeNotifier {
   }) async {
     final user = _currentUser;
     if (user == null) return 'Please login first.';
-    final storagePath = _buildStoragePath('group_photos/$groupId', originalFileName);
+    final storagePath =
+        _buildStoragePath('group_photos/$groupId', originalFileName);
     try {
       await _supabase.storage.from(_storageBucket).uploadBinary(
             storagePath,
@@ -962,8 +1014,7 @@ class AppState extends ChangeNotifier {
           );
       await _supabase
           .from('study_groups')
-          .update({'photo_path': storagePath})
-          .eq('id', groupId);
+          .update({'photo_path': storagePath}).eq('id', groupId);
       final group = _groups.where((g) => g.id == groupId).firstOrNull;
       if (group != null) group.photoPath = storagePath;
       notifyListeners();
@@ -1013,6 +1064,7 @@ class AppState extends ChangeNotifier {
     required String keywords,
     required Uint8List fileBytes,
     required String originalFileName,
+    String? folderId,
   }) async {
     final user = _currentUser;
     if (user == null) {
@@ -1042,6 +1094,7 @@ class AppState extends ChangeNotifier {
             'year': year,
             'type': type,
             'keywords': keywords,
+            'folder_id': folderId,
             'file_path': storagePath,
             'file_name': originalFileName,
           })
@@ -1060,6 +1113,7 @@ class AppState extends ChangeNotifier {
           keywords: row['keywords'] as String? ?? keywords,
           createdAt: DateTime.tryParse(row['created_at'] as String? ?? '') ??
               DateTime.now(),
+          folderId: row['folder_id'] as String? ?? folderId,
           localPath: row['file_path'] as String? ?? storagePath,
         ),
       );
@@ -1091,6 +1145,7 @@ class AppState extends ChangeNotifier {
     required String year,
     required String type,
     required String keywords,
+    required String? folderId,
   }) async {
     await _supabase.from('notes').update({
       'name': name,
@@ -1098,6 +1153,7 @@ class AppState extends ChangeNotifier {
       'year': year,
       'type': type,
       'keywords': keywords,
+      'folder_id': folderId,
     }).eq('id', id);
 
     final note = _notes.firstWhere((item) => item.id == id);
@@ -1106,7 +1162,83 @@ class AppState extends ChangeNotifier {
       ..subject = subject
       ..year = year
       ..type = type
-      ..keywords = keywords;
+      ..keywords = keywords
+      ..folderId = folderId;
+    notifyListeners();
+  }
+
+  Future<String?> addNoteFolder(String name) async {
+    final user = _currentUser;
+    final clean = name.trim();
+    if (user == null) {
+      return 'Please login first.';
+    }
+    if (clean.isEmpty) {
+      return 'Folder name is required.';
+    }
+
+    try {
+      final inserted = await _supabase
+          .from('note_folders')
+          .insert({'user_id': user.id, 'name': clean})
+          .select()
+          .single();
+      final row = Map<String, dynamic>.from(inserted);
+      _noteFolders.insert(
+        0,
+        NoteFolder(
+          id: row['id'] as String,
+          name: row['name'] as String? ?? clean,
+          createdAt: DateTime.tryParse(row['created_at'] as String? ?? '') ??
+              DateTime.now(),
+        ),
+      );
+      notifyListeners();
+      return null;
+    } on PostgrestException catch (error) {
+      return _friendlyDbError(error);
+    } catch (_) {
+      return 'Unable to create folder right now.';
+    }
+  }
+
+  Future<void> renameNoteFolder({
+    required String folderId,
+    required String newName,
+  }) async {
+    final clean = newName.trim();
+    if (clean.isEmpty) {
+      return;
+    }
+    await _supabase
+        .from('note_folders')
+        .update({'name': clean}).eq('id', folderId);
+    final folder = _noteFolders.firstWhere((item) => item.id == folderId);
+    folder.name = clean;
+    notifyListeners();
+  }
+
+  Future<void> deleteNoteFolder(String folderId) async {
+    await _supabase
+        .from('notes')
+        .update({'folder_id': null}).eq('folder_id', folderId);
+    await _supabase.from('note_folders').delete().eq('id', folderId);
+    for (final note in _notes.where((item) => item.folderId == folderId)) {
+      note.folderId = null;
+    }
+    _noteFolders.removeWhere((item) => item.id == folderId);
+    notifyListeners();
+  }
+
+  Future<void> moveNoteToFolder({
+    required String noteId,
+    String? folderId,
+  }) async {
+    await _supabase
+        .from('notes')
+        .update({'folder_id': folderId}).eq('id', noteId);
+    final note = _notes.firstWhere((item) => item.id == noteId);
+    note.folderId = folderId;
     notifyListeners();
   }
 
@@ -1134,9 +1266,8 @@ class AppState extends ChangeNotifier {
     if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
       return cleanPath;
     }
-    final normalizedPath = cleanPath.startsWith('/')
-        ? cleanPath.substring(1)
-        : cleanPath;
+    final normalizedPath =
+        cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
     try {
       return await _supabase.storage
           .from(_storageBucket)
@@ -1182,7 +1313,8 @@ class AppState extends ChangeNotifier {
     return group;
   }
 
-  Future<void> renameGroup({required String groupId, required String newName}) async {
+  Future<void> renameGroup(
+      {required String groupId, required String newName}) async {
     if (newName.trim().isEmpty) {
       return;
     }
@@ -1288,6 +1420,7 @@ class AppState extends ChangeNotifier {
     final group = _groups.firstWhere((item) => item.id == groupId);
     group.messages.add(
       ChatMessage(
+        id: row['id'] as String?,
         sender: row['sender_unique_id'] as String? ?? sender,
         content: row['content'] as String? ?? content,
         sentAt: DateTime.tryParse(row['sent_at'] as String? ?? '') ??
@@ -1298,6 +1431,59 @@ class AppState extends ChangeNotifier {
         attachmentType: row['attachment_type'] as String?,
       ),
     );
+    notifyListeners();
+  }
+
+  Future<void> deleteGroupMessage({
+    required String groupId,
+    required String messageId,
+  }) async {
+    final group = _groups.where((item) => item.id == groupId).firstOrNull;
+    if (group == null) {
+      return;
+    }
+
+    final target =
+        group.messages.where((item) => item.id == messageId).firstOrNull;
+    if (target == null) {
+      return;
+    }
+
+    final attachmentRef = (target.attachmentRef ?? '').trim();
+    await _supabase.from('group_messages').delete().eq('id', messageId);
+    group.messages.removeWhere((item) => item.id == messageId);
+
+    if (attachmentRef.isNotEmpty) {
+      try {
+        await _supabase.storage.from(_storageBucket).remove([attachmentRef]);
+      } catch (_) {}
+    }
+
+    notifyListeners();
+  }
+
+  Future<void> clearGroupChat(String groupId) async {
+    final group = _groups.where((item) => item.id == groupId).firstOrNull;
+    if (group == null) {
+      return;
+    }
+
+    final attachmentRefs = group.attachments
+        .map((item) => item.fileRef.trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
+
+    await _supabase.from('group_messages').delete().eq('group_id', groupId);
+    await _supabase.from('group_attachments').delete().eq('group_id', groupId);
+
+    if (attachmentRefs.isNotEmpty) {
+      try {
+        await _supabase.storage.from(_storageBucket).remove(attachmentRefs);
+      } catch (_) {}
+    }
+
+    group.messages.clear();
+    group.attachments.clear();
     notifyListeners();
   }
 
@@ -1338,8 +1524,8 @@ class AppState extends ChangeNotifier {
         fileRef: row['file_ref'] as String? ?? storagePath,
         fileType: row['file_type'] as String? ?? fileType,
         sentBy: row['sent_by'] as String? ?? sentBy,
-        sentAt:
-            DateTime.tryParse(row['sent_at'] as String? ?? '') ?? DateTime.now(),
+        sentAt: DateTime.tryParse(row['sent_at'] as String? ?? '') ??
+            DateTime.now(),
       );
 
       final group = _groups.firstWhere((item) => item.id == groupId);
@@ -1392,6 +1578,7 @@ class AppState extends ChangeNotifier {
     final row = Map<String, dynamic>.from(inserted);
     _directChats.putIfAbsent(targetUniqueId, () => []).add(
           ChatMessage(
+            id: row['id'] as String?,
             sender: row['sender_unique_id'] as String? ?? sender,
             content: row['content'] as String? ?? content,
             sentAt: DateTime.tryParse(row['sent_at'] as String? ?? '') ??
@@ -1489,12 +1676,15 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> renameUrlFolder({required String folderId, required String newName}) async {
+  Future<void> renameUrlFolder(
+      {required String folderId, required String newName}) async {
     final clean = newName.trim();
     if (clean.isEmpty) {
       return;
     }
-    await _supabase.from('url_folders').update({'name': clean}).eq('id', folderId);
+    await _supabase
+        .from('url_folders')
+        .update({'name': clean}).eq('id', folderId);
     final folder = _urlFolders.firstWhere((item) => item.id == folderId);
     folder.name = clean;
     notifyListeners();
@@ -1507,7 +1697,8 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addUrlSubFolder({required String folderId, required String name}) async {
+  Future<void> addUrlSubFolder(
+      {required String folderId, required String name}) async {
     final clean = name.trim();
     if (clean.isEmpty) {
       return;
@@ -1621,8 +1812,9 @@ class AppState extends ChangeNotifier {
     }
 
     for (final group in _groups) {
-      final memberText =
-          group.members.map((member) => '${member.name} ${member.uniqueId}').join(' ');
+      final memberText = group.members
+          .map((member) => '${member.name} ${member.uniqueId}')
+          .join(' ');
       final value = '${group.name} ${group.id} $memberText'.toLowerCase();
       if (value.contains(q)) {
         results.add('Group: ${group.name} (${group.id})');
@@ -1685,7 +1877,8 @@ class AppState extends ChangeNotifier {
 
   static String _createUniqueId() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final code = List.generate(6, (_) => chars[_random.nextInt(chars.length)]).join();
+    final code =
+        List.generate(6, (_) => chars[_random.nextInt(chars.length)]).join();
     return 'NN-$code';
   }
 }
