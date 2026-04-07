@@ -71,24 +71,7 @@ class AppState extends ChangeNotifier {
 
   UserProfile profile;
 
-  final List<TodoTask> _tasks = [
-    TodoTask(
-      id: _newId('TASK'),
-      title: 'DBMS assignment 4',
-      subject: 'DBMS',
-      type: 'Assignment',
-      dateTime: DateTime.now().add(const Duration(hours: 4)),
-      status: TaskStatus.inProgress,
-    ),
-    TodoTask(
-      id: _newId('TASK'),
-      title: 'Operating systems notes cleanup',
-      subject: 'Operating Systems',
-      type: 'Subject To-Do',
-      dateTime: DateTime.now().add(const Duration(days: 1)),
-      status: TaskStatus.notCompleted,
-    ),
-  ];
+  final List<TodoTask> _tasks = [];
 
   final List<NoteItem> _notes = [];
   final List<NoteFolder> _noteFolders = [];
